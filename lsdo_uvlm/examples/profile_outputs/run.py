@@ -196,7 +196,7 @@ class RunModel(csdl.Model):
 
         # Create Model containing integrator
         # ODEProblem = ODEProblemTest('ForwardEuler', 'time-marching checkpointing', num_times, display='default', visualization='None')
-        ODEProblem = ODEProblemTest('ForwardEuler', 'time-marching', num_times, display='default', visualization='None')
+        ODEProblem = ODEProblemTest('RK4', 'time-marching', num_times, display='default', visualization='None')
 
         self.add(ODEProblem.create_solver_model(ODE_parameters=params_dict,
                                                 profile_parameters=profile_params_dict), 'subgroup')
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     # Script to create optimization problem
     be = 'python_csdl_backend'
     # be = 'csdl_om'
-    make_video = 0
+    make_video = 1
 
     ########################################
     # define mesh here
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     span = 12
     # num_nodes = 9*16
     # num_nodes = 16 *2
-    num_nodes = 200
+    num_nodes = 20
     # num_nodes = 3
     nt = num_nodes+1
 
@@ -248,7 +248,8 @@ if __name__ == "__main__":
 
     # u_val = np.concatenate((np.array([0.01, 0.5,1.]),np.ones(num_nodes-3))).reshape(num_nodes,1)
     # u_val = np.ones(num_nodes).reshape(num_nodes,1)
-    u_val = np.concatenate((np.array([0.001]), np.ones(num_nodes-1))).reshape(num_nodes,1)
+    u_val = np.concatenate((np.array([0.001]), np.ones(num_nodes-1))).reshape(num_nodes,1)*10
+    theta_val = np.linspace(0,alpha,num=num_nodes)
 
     AcStates_val_dict = {
         'u': u_val,
@@ -257,7 +258,7 @@ if __name__ == "__main__":
         'p': np.zeros((num_nodes, 1)),
         'q': np.zeros((num_nodes, 1)),
         'r': np.zeros((num_nodes, 1)),
-        'theta': np.ones((num_nodes, 1))*alpha,
+        'theta': theta_val,
         'psi': np.zeros((num_nodes, 1)),
         'x': np.zeros((num_nodes, 1)),
         'y': np.zeros((num_nodes, 1)),
@@ -334,7 +335,7 @@ if __name__ == "__main__":
             yrange=(-10, 10),
             zrange=(-3, 4),
         )
-        video = Video("spider.gif", duration=10, backend='ffmpeg')
+        video = Video("uvlm_test.gif", duration=10, backend='ffmpeg')
         for i in range(nt - 1):
             vp = Plotter(
                 bg='beige',
@@ -359,12 +360,12 @@ if __name__ == "__main__":
             # cam1 = dict(focalPoint=(3.133, 1.506, -3.132))
             # video.action(cameras=[cam1, cam1])
             vp.show(axs, elevation=-60, azimuth=-0,
-                    axes=False)  # render the scene
-            video.addFrame()  # add individual frame
+                    axes=False, interactive=False)  # render the scene
+            video.add_frame()  # add individual frame
             # time.sleep(0.1)
             # vp.interactive().close()
-            vp.closeWindow()
-        vp.closeWindow()
+            vp.close_window()
+        vp.close_window()
         video.close()  # merge all the recorded frames
 
     # sim.compute_totals(of='',wrt='*')

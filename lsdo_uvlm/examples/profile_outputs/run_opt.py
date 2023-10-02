@@ -208,7 +208,7 @@ class RunModel(csdl.Model):
 if __name__ == "__main__":
     # Script to create optimization problem
     be = 'python_csdl_backend'
-    make_video = 0
+    make_video = 1
 
 
     num_nodes = 32

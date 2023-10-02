@@ -2,7 +2,7 @@
 from csdl import Model
 import csdl
 import numpy as np
-from fluids import atmosphere as atmosphere
+# from fluids import atmosphere as atmosphere
 
 
 class AdapterComp(Model):
