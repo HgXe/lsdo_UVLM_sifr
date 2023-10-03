@@ -202,8 +202,9 @@ class ODESystemModel(csdl.Model):
 if __name__ == "__main__":
     # from lsdo_uvlm.uvlm_preprocessing.utils.enum import *
     import enum
-    from csdl_om import Simulator
-    import csdl_lite
+    # from csdl_om import Simulator
+    # import csdl_lite
+    from python_csdl_backend import Simulator
     # simulator_name = 'csdl_lite'
     simulator_name = 'csdl_om'
     num_nodes = 1
@@ -287,19 +288,24 @@ if __name__ == "__main__":
     
     m = ODESystemModel(surface_names=surface_names,surface_shapes=surface_shapes,delta_t=1,nt=5)
     model_1.add(m,'ode')
-    if simulator_name == 'csdl_om':
 
-        sim = Simulator(model_1)
+    sim = Simulator(model_1)
+    sim.run()
+    sim.check_partials()
 
-        sim.run()
-        # sim.prob.check_partials(compact_print=True)
-        # partials = sim.prob.check_partials(compact_print=True, out_stream=None)
-        # sim.assert_check_partials(partials, 1e-5, 1e-7)
-        sim.visualize_implementation()
-        sim.prob.check_config(checks=['unconnected_inputs'], out_file=None)
+    # if simulator_name == 'csdl_om':
 
-    elif simulator_name == 'csdl_lite':
-        sim = csdl_lite.Simulator(model_1)
+    #     sim = Simulator(model_1)
 
-        sim.run()
-        sim.check_partials(compact_print=True)
+    #     sim.run()
+    #     # sim.prob.check_partials(compact_print=True)
+    #     # partials = sim.prob.check_partials(compact_print=True, out_stream=None)
+    #     # sim.assert_check_partials(partials, 1e-5, 1e-7)
+    #     sim.visualize_implementation()
+    #     sim.prob.check_config(checks=['unconnected_inputs'], out_file=None)
+
+    # elif simulator_name == 'csdl_lite':
+    #     sim = csdl_lite.Simulator(model_1)
+
+    #     sim.run()
+    #     sim.check_partials(compact_print=True)

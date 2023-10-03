@@ -196,7 +196,7 @@ class RunModel(csdl.Model):
 
         # Create Model containing integrator
         # ODEProblem = ODEProblemTest('ForwardEuler', 'time-marching checkpointing', num_times, display='default', visualization='None')
-        ODEProblem = ODEProblemTest('RK4', 'time-marching', num_times, display='default', visualization='None')
+        ODEProblem = ODEProblemTest('ForwardEuler', 'time-marching', num_times, display='default', visualization='None')
 
         self.add(ODEProblem.create_solver_model(ODE_parameters=params_dict,
                                                 profile_parameters=profile_params_dict), 'subgroup')
@@ -249,7 +249,9 @@ if __name__ == "__main__":
     # u_val = np.concatenate((np.array([0.01, 0.5,1.]),np.ones(num_nodes-3))).reshape(num_nodes,1)
     # u_val = np.ones(num_nodes).reshape(num_nodes,1)
     u_val = np.concatenate((np.array([0.001]), np.ones(num_nodes-1))).reshape(num_nodes,1)*10
-    theta_val = np.linspace(0,alpha,num=num_nodes)
+    # theta_val = np.linspace(0,alpha,num=num_nodes)
+    theta_val = np.ones((num_nodes, 1))*alpha,
+
 
     AcStates_val_dict = {
         'u': u_val,
