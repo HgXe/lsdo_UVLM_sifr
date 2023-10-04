@@ -9,6 +9,9 @@ from lsdo_uvlm.uvlm_preprocessing.adapter_comp import AdapterComp
 from lsdo_uvlm.uvlm_system.solve_circulations.solve_group import SolveMatrix
 from lsdo_uvlm.uvlm_system.wake_rollup.seperate_gamma_b import SeperateGammab
 from lsdo_uvlm.uvlm_system.wake_rollup.compute_wake_total_vel import ComputeWakeTotalVel
+from lsdo_uvlm.uvlm_outputs.compute_force.compute_lift_drag import LiftDrag
+from lsdo_uvlm.examples.profile_outputs.profile_op_model import ProfileOpModel
+
 
 class UVLMCore(m3l.ImplicitOperation):
     def initialize(self, kwargs):
@@ -25,12 +28,13 @@ class UVLMCore(m3l.ImplicitOperation):
         self.nt = self.parameters['nt']
     def evaluate(self):
         self.assign_atributes()
+        num_nodes = self.nt - 1
         self.residual_names = []
         name = self.name + '_'
         self.ode_parameters = ['u',
                                'v',
                                'w',
-                            #    'p',
+                            #    'p',   # these are declared but not used
                             #    'q',
                             #    'r',
                                'theta',
@@ -54,6 +58,7 @@ class UVLMCore(m3l.ImplicitOperation):
             nx = surface_shape[0]
             ny = surface_shape[1]
             self.ode_parameters.append(surface_name)
+            surface_name = name + surface_name
             ####################################
             # ode states names
             ####################################
@@ -80,13 +85,14 @@ class UVLMCore(m3l.ImplicitOperation):
             self.residual_names.append((gamma_w_name,dgammaw_dt_name,(num_nodes, ny-1)))
             self.residual_names.append((wing_wake_coords_name,dwake_coords_dt_name,(num_nodes,ny,3)))
 
-        for i in range(len(self.ode_parameters)-1):
+
+        for i in range(len(self.ode_parameters)):
             self.ode_parameters[i] = name + self.ode_parameters[i]
         self.inputs = {}
         self.arguments = {}
         
         residual = m3l.Variable(self.residual_names[0][1], shape=(), operation=self)
-        return residual
+        return residual #, frame_vel, bd_vec, horseshoe_circulation
     def compute_residual(self, num_nodes):
         model = ODESystemModel(num_nodes=num_nodes, 
                                surface_names=self.surface_names,
@@ -95,6 +101,14 @@ class UVLMCore(m3l.ImplicitOperation):
                                nt=self.nt,
                                name=self.name)
         return model
+
+
+# class UVLMForces(m3l.ExplicitOperation):
+#     def evaluate(self, frame_vel, alpha, beta, bd_vec, horseshoe_circulation, ):
+
+#         return
+
+
 
 
 class ODESystemModel(csdl.Model):
@@ -123,6 +137,10 @@ class ODESystemModel(csdl.Model):
         delta_t = self.parameters['delta_t']
         nt = self.parameters['nt']
         name = self.parameters['name'] + '_'
+
+        # fix surface names
+        for i in range(len(surface_names)):
+            surface_names[i] = name + surface_names[i]
 
         # set conventional names
         wake_coords_names = [x + '_wake_coords' for x in surface_names]
@@ -183,7 +201,7 @@ class ODESystemModel(csdl.Model):
                                 surface_names=surface_names,
                                 bd_vortex_shapes=ode_surface_shapes,
                                 delta_t=delta_t),
-                    name='solve_gamma_b_group')
+                    name='solve_gamma_b_group') # TODO: check this for potential speedup
 
         self.add(SeperateGammab(surface_names=surface_names,
                                 surface_shapes=ode_surface_shapes),
@@ -255,7 +273,8 @@ class ODESystemModel(csdl.Model):
 
         self.add(ComputeWakeTotalVel(surface_names=surface_names,
                                 surface_shapes=ode_surface_shapes,
-                                n_wake_pts_chord=nt-1),
+                                n_wake_pts_chord=nt-1,
+                                name = name),
                  name='ComputeWakeTotalVel')            
         for i in range(len(surface_names)):
             nx = bd_vortex_shapes[i][0]
@@ -283,9 +302,109 @@ class ODESystemModel(csdl.Model):
                                     (surface_wake_coords.shape[1] - 1), :, :] -
                 surface_wake_coords[:, 1:, :, :] +
                 wake_total_vel[:, 1:, :, :] * delta_t) / delta_t
+
+
+class LiftDragM3L(csdl.Model):
+    def initialize(self):
+        self.parameters.declare('surface_names', types=list)
+        self.parameters.declare('surface_shapes', types=list)
+
+        self.parameters.declare('eval_pts_option')
+        self.parameters.declare('eval_pts_shapes')
+        self.parameters.declare('sprs')
+
+        # self.parameters.declare('rho', default=0.9652)
+        self.parameters.declare('eval_pts_names', types=None)
+
+        self.parameters.declare('coeffs_aoa', default=None)
+        self.parameters.declare('coeffs_cd', default=None)
+    def define(self):
+        # rename parameters
+        n = self.parameters['num_nodes']
+        surface_names = self.parameters['surface_names']
+        surface_shapes = self.parameters['surface_shapes']
+        delta_t = self.parameters['delta_t']
+        nt = self.parameters['nt']
+
+        # fix surface names
+        for i in range(len(surface_names)):
+            surface_names[i] = surface_names[i]
+
+        # set conventional names
+        wake_coords_names = [x + '_wake_coords' for x in surface_names]
+        v_total_wake_names = [x + '_wake_total_vel' for x in surface_names]
+        # set shapes
+        bd_vortex_shapes = surface_shapes
+        gamma_b_shape = sum((i[0] - 1) * (i[1] - 1) for i in bd_vortex_shapes)
+        ode_surface_shapes = [(n, ) + item for item in surface_shapes]
+        # wake_vortex_pts_shapes = [tuple((item[0],nt, item[2], 3)) for item in ode_surface_shapes]
+        # wake_vel_shapes = [(n,x[1] * x[2], 3) for x in wake_vortex_pts_shapes]
+        ode_bd_vortex_shapes = ode_surface_shapes
+        gamma_w_shapes = [tuple((n,nt-1, item[2]-1)) for item in ode_surface_shapes]
+
+        '''1. add a module here to compute surface_gamma_b, given mesh and ACstates'''
+        # 1.1.1 declare the ode parameter surface for the current time step
+        for i in range(len(surface_names)):
+            nx = bd_vortex_shapes[i][0]
+            ny = bd_vortex_shapes[i][1]
+            surface_name = surface_names[i]
             
 
+            surface = self.declare_variable(surface_name, shape=(n, nx, ny, 3))
+        # 1.1.2 from the declared surface mesh, compute 6 preprocessing outputs
+        # surface_bd_vtx_coords,coll_pts,l_span,l_chord,s_panel,bd_vec_all
+        self.add(MeshPreprocessingComp(surface_names=surface_names,
+                                       surface_shapes=ode_surface_shapes),
+                 name='MeshPreprocessing_comp')
+        # 1.2.1 declare the ode parameter AcStates for the current time step
+        u = self.declare_variable('u',  shape=(n,1))
+        v = self.declare_variable('v',  shape=(n,1))
+        w = self.declare_variable('w',  shape=(n,1))
+        p = self.declare_variable('p',  shape=(n,1))
+        q = self.declare_variable('q',  shape=(n,1))
+        r = self.declare_variable('r',  shape=(n,1))
+        theta = self.declare_variable('theta',  shape=(n,1))
+        psi = self.declare_variable('psi',  shape=(n,1))
+        x = self.declare_variable('x',  shape=(n,1))
+        y = self.declare_variable('y',  shape=(n,1))
+        z = self.declare_variable('z',  shape=(n,1))
+        phiw = self.declare_variable('phiw',  shape=(n,1))
+        gamma = self.declare_variable('gamma',  shape=(n,1))
+        psiw = self.declare_variable('psiw',  shape=(n,1))
+
+
+        #  1.2.2 from the AcStates, compute 5 preprocessing outputs
+        # frame_vel, alpha, v_inf_sq, beta, rho
+        m = AdapterComp(
+            surface_names=surface_names,
+            surface_shapes=ode_surface_shapes
+        )
+        self.add(m, name='adapter_comp')
+        
+        eval_pts_names = [x + '_eval_pts_coords' for x in surface_names]
+        ode_surface_shapes = [(n, ) + item for item in surface_shapes]
+        eval_pts_shapes =        [
+            tuple(map(lambda i, j: i - j, item, (0, 1, 1, 0)))
+            for item in ode_surface_shapes
+        ]
+
+        ld_model = LiftDrag(
+            surface_names=surface_names,
+            surface_shapes=ode_surface_shapes,
+            eval_pts_option='auto',
+            eval_pts_shapes=eval_pts_shapes,
+            eval_pts_names=eval_pts_names,
+            sprs=None,
+            coeffs_aoa=None,
+            coeffs_cd=None,
+        )
+        self.add(ld_model, name='LiftDrag')
+
+
+
+
 if __name__ == '__main__':
+    pass
     import python_csdl_backend
     from VLM_package.examples.run_vlm.utils.generate_mesh import generate_mesh
 
@@ -343,6 +462,7 @@ if __name__ == '__main__':
 
     # Generate mesh of a rectangular wing
     mesh = generate_mesh(mesh_dict)
+    mesh2 = generate_mesh(mesh_dict)
 
     # mesh_val = generate_simple_mesh(nx, ny, num_nodes)
     mesh_val = np.zeros((num_nodes, nx, ny, 3))
@@ -352,18 +472,29 @@ if __name__ == '__main__':
         mesh_val[i, :, :, 0] = mesh.copy()[:, :, 0]
         mesh_val[i, :, :, 1] = mesh.copy()[:, :, 1]
 
-    uvlm_parameters.append(('wing',True,mesh_val))
+    mesh_val_2 = np.zeros((num_nodes, nx, ny, 3))
 
+    for i in range(num_nodes):
+        mesh_val_2[i, :, :, 2] = mesh2.copy()[:, :, 2] + .25
+        mesh_val_2[i, :, :, 0] = mesh2.copy()[:, :, 0] + 5
+        mesh_val_2[i, :, :, 1] = mesh2.copy()[:, :, 1]
+
+    uvlm_parameters.append(('uvlm_wing',True,mesh_val))
+    # uvlm_parameters.append(('uvlm_wing2',True,mesh_val_2))
+
+
+    # surface_names=['wing','wing2']
+    # surface_shapes=[(nx, ny, 3),(nx, ny, 3)]
     surface_names=['wing']
     surface_shapes=[(nx, ny, 3)]
-    h_stepsize = delta_t = 1/16 
+    h_stepsize = delta_t = 1/16
 
 
     initial_conditions = []
     for i in range(len(surface_names)):
         surface_name = surface_names[i]
-        gamma_w_0_name = surface_name + '_gamma_w_0'
-        wake_coords_0_name = surface_name + '_wake_coords_0'
+        gamma_w_0_name = 'uvlm_' + surface_name + '_gamma_w_0'
+        wake_coords_0_name = 'uvlm_' + surface_name + '_wake_coords_0'
         surface_shape = surface_shapes[i]
         nx = surface_shape[0]
         ny = surface_shape[1]
@@ -371,102 +502,101 @@ if __name__ == '__main__':
 
         initial_conditions.append((wake_coords_0_name, np.zeros((num_nodes, ny, 3))))
 
+    profile_outputs = []
+    # profile outputs are outputs from the ode integrator that are not states. 
+    # instead they are outputs of a function of the solved states and parameters
+    profile_outputs.append((name + 'wing_gamma_b', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
+    profile_outputs.append((name + 'wing_eval_pts_coords', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1),3)))
+    profile_outputs.append((name + 'wing_s_panel', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1))))
+    profile_outputs.append((name + 'wing_eval_total_vel', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
+    profile_outputs.append((name + 'rho',(1,)))
+    profile_outputs.append((name + 'alpha',(1,)))
+    profile_outputs.append((name + 'beta',(1,)))
+    profile_outputs.append((name + 'frame_vel',(3,)))
+    # profile_outputs.append((name + 'evaluation_pt'))
+    profile_outputs.append((name + 'bd_vec', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
+
+    profile_outputs.append((name + 'horseshoe_circulation', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
+    profile_outputs.append(('F', (num_nodes, 3)) )
+    profile_outputs.append(('uvlm_wing_L', (num_nodes,1)))
+    # profile_outputs.append(('uvlm_wing2_C_L', (num_nodes,1)))
+    profile_outputs.append(('uvlm_wing_D', (num_nodes,1)))
+    # profile_outputs.append(('uvlm_wing2_C_D_i', (num_nodes,1)))
+
+    profile_system = ProfileOpModel
+    profile_params_dict = {
+            # 'num_nodes': nt-1,
+            'surface_names': surface_names,
+            'surface_shapes': surface_shapes,
+            'delta_t': delta_t,
+            'nt': nt,
+            'name': 'uvlm'
+        }
+
     model = m3l.DynamicModel()
-    uvlm = UVLMCore(surface_names=surface_names,surface_shapes=surface_shapes,delta_t=delta_t,nt=num_nodes+1)
+    uvlm = UVLMCore(surface_names=surface_names, surface_shapes=surface_shapes, delta_t=delta_t, nt=num_nodes+1)
     uvlm_residual = uvlm.evaluate()
     model.register_output(uvlm_residual)
     model.set_dynamic_options(initial_conditions=initial_conditions,
                               num_times=num_nodes,
                               h_stepsize=delta_t,
                               parameters=uvlm_parameters,
-                              integrator='ForwardEuler')
+                              integrator='ForwardEuler',
+                              profile_outputs=profile_outputs,
+                              profile_system=profile_system,
+                              profile_parameters=profile_params_dict)
     model_csdl = model.assemble()
     sim = python_csdl_backend.Simulator(model_csdl, analytics=True)
+    # Before code
+    import cProfile
+    profiler = cProfile.Profile()
+    profiler.enable()
     sim.run()
+    # After code
+    profiler.disable()
+    profiler.dump_stats('output')
+
+    print('Lift 1: ' + str(sim['prob.uvlm_wing_L']))
+    print('Drag 1: ' + str(sim['prob.uvlm_wing_D']))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-    exit()
-    def generate_simple_mesh(nx, ny, n_wake_pts_chord=None,offset=0):
-        if n_wake_pts_chord == None:
-            mesh = np.zeros((nx, ny, 3))
-            mesh[:, :, 0] = np.outer(np.arange(nx), np.ones(ny))
-            mesh[:, :, 1] = np.outer(np.arange(ny), np.ones(nx)).T
-            mesh[:, :, 2] = 0.
-        else:
-            mesh = np.zeros((n_wake_pts_chord, nx, ny, 3))
-            for i in range(n_wake_pts_chord):
-                mesh[i, :, :, 0] = np.outer(np.arange(nx), np.ones(ny))
-                mesh[i, :, :, 1] = np.outer(np.arange(ny), np.ones(nx)).T
-                mesh[i, :, :, 2] = 0. + offset
-        return mesh
-
-    nx=3
-    ny=4
-    surface_names=['wing','wing_1']
-
-    surface_shapes = [(nx,ny,3),(nx,ny,3)]
-
-    wing_val = generate_simple_mesh(nx, ny, 1)
-    wing_val_1 = generate_simple_mesh(nx,ny, 1, 1)
-    
-    num_nodes = 10
-    delta_t = 1/16
-    model = m3l.DynamicModel()
-    uvlm = UVLMCore(surface_names=surface_names,surface_shapes=surface_shapes,delta_t=delta_t,nt=num_nodes+1)
-    uvlm_residual = uvlm.evaluate()
-    model.register_output(uvlm_residual)
-
-    
-    alpha_deg = 10
-    alpha = alpha_deg / 180 * np.pi
-    name = 'uvlm_'
-    uvlm_parameters = [(name+'u',True,np.ones((num_nodes, 1))* np.cos(alpha)),
-                       (name+'v',True,np.zeros((num_nodes, 1))),
-                       (name+'w',True,np.ones((num_nodes, 1))* np.sin(alpha)),
-                       (name+'p',True,np.zeros((num_nodes, 1))),
-                       (name+'q',True,np.zeros((num_nodes, 1))),
-                       (name+'r',True,np.zeros((num_nodes, 1))),
-                       (name+'theta',True,np.ones((num_nodes, 1))*alpha),
-                       (name+'psi',True,np.zeros((num_nodes, 1))),
-                       (name+'x',True,np.zeros((num_nodes, 1))),
-                       (name+'y',True,np.zeros((num_nodes, 1))),
-                       (name+'z',True,np.zeros((num_nodes, 1))),
-                       (name+'phiw',True,np.zeros((num_nodes, 1))),
-                       (name+'gamma',True,np.zeros((num_nodes, 1))),
-                       (name+'psiw',True,np.zeros((num_nodes, 1))),
-                       ('wing',False,wing_val),
-                       ('wing_1',False,wing_val_1)]
-    
-    initial_conditions = []
-    for i in range(len(surface_names)):
-        surface_name = surface_names[i]
-        gamma_w_0_name = surface_name + '_gamma_w_0'
-        wake_coords_0_name = surface_name + '_wake_coords_0'
-        surface_shape = surface_shapes[i]
-        nx = surface_shape[0]
-        ny = surface_shape[1]
-        initial_conditions.append((gamma_w_0_name, np.zeros((num_nodes, ny - 1))))
-
-        initial_conditions.append((wake_coords_0_name, np.zeros((num_nodes, ny, 3))))
-    
-    model.set_dynamic_options(initial_conditions=initial_conditions,
-                              num_times=num_nodes,
-                              h_stepsize=delta_t,
-                              parameters=uvlm_parameters)
-    model_csdl = model.assemble()
-    sim = python_csdl_backend.Simulator(model_csdl, analytics=True)
-    sim.run()
-    sim.check_partials()
-
+    if True:
+        from vedo import dataurl, Plotter, Mesh, Video, Points, Axes, show
+        axs = Axes(
+            xrange=(0, 35),
+            yrange=(-10, 10),
+            zrange=(-3, 4),
+        )
+        video = Video("uvlm_m3l_test.gif", duration=10, backend='ffmpeg')
+        for i in range(nt - 1):
+            vp = Plotter(
+                bg='beige',
+                bg2='lb',
+                # axes=0,
+                #  pos=(0, 0),
+                offscreen=False,
+                interactive=1)
+            # Any rendering loop goes here, e.g.:
+            for surface_name in surface_names:
+                surface_name = 'prob.' + surface_name
+                vps = Points(np.reshape(sim[surface_name][i, :, :, :], (-1, 3)),
+                            r=8,
+                            c='red')
+                vp += vps
+                vp += __doc__
+                vps = Points(np.reshape(sim[surface_name+'_wake_coords_integrated'][i, 0:i, :, :],
+                                        (-1, 3)),
+                            r=8,
+                            c='blue')
+                vp += vps
+                vp += __doc__
+            # cam1 = dict(focalPoint=(3.133, 1.506, -3.132))
+            # video.action(cameras=[cam1, cam1])
+            vp.show(axs, elevation=-60, azimuth=-0,
+                    axes=False, interactive=False)  # render the scene
+            video.add_frame()  # add individual frame
+            # time.sleep(0.1)
+            # vp.interactive().close()
+            vp.close_window()
+        vp.close_window()
+        video.close()  # merge all the recorded frames

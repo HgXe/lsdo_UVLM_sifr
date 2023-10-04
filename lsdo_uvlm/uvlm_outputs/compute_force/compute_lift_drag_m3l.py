@@ -6,6 +6,8 @@ from matplotlib.pyplot import axis
 import numpy as np
 
 from lsdo_uvlm.uvlm_outputs.compute_effective_aoa_cd_v import AOA_CD
+from lsdo_uvlm.uvlm_preprocessing.mesh_preprocessing_comp import MeshPreprocessingComp
+from lsdo_uvlm.uvlm_preprocessing.adapter_comp import AdapterComp
 
 
 class LiftDrag(Model):
@@ -40,14 +42,73 @@ class LiftDrag(Model):
         self.parameters.declare('coeffs_aoa', default=None)
         self.parameters.declare('coeffs_cd', default=None)
 
-        self.parameters.declare('name', default='')
-
     def define(self):
         surface_names = self.parameters['surface_names']
         surface_shapes = self.parameters['surface_shapes']
-        name = self.parameters['name']
-        num_nodes = surface_shapes[0][0]
-        frame_vel = self.declare_variable(name + 'frame_vel', shape=(num_nodes, 3))
+        n = num_nodes = surface_shapes[0][0]
+
+        delta_t = self.parameters['delta_t']
+        nt = self.parameters['nt']
+
+        # fix surface names
+        for i in range(len(surface_names)):
+            surface_names[i] = surface_names[i]
+
+        # set conventional names
+        wake_coords_names = [x + '_wake_coords' for x in surface_names]
+        v_total_wake_names = [x + '_wake_total_vel' for x in surface_names]
+        # set shapes
+        bd_vortex_shapes = surface_shapes
+        gamma_b_shape = sum((i[0] - 1) * (i[1] - 1) for i in bd_vortex_shapes)
+        ode_surface_shapes = [(n, ) + item for item in surface_shapes]
+        # wake_vortex_pts_shapes = [tuple((item[0],nt, item[2], 3)) for item in ode_surface_shapes]
+        # wake_vel_shapes = [(n,x[1] * x[2], 3) for x in wake_vortex_pts_shapes]
+        ode_bd_vortex_shapes = ode_surface_shapes
+        gamma_w_shapes = [tuple((n,nt-1, item[2]-1)) for item in ode_surface_shapes]
+
+        '''1. add a module here to compute surface_gamma_b, given mesh and ACstates'''
+        # 1.1.1 declare the ode parameter surface for the current time step
+        for i in range(len(surface_names)):
+            nx = bd_vortex_shapes[i][0]
+            ny = bd_vortex_shapes[i][1]
+            surface_name = surface_names[i]
+            
+
+            surface = self.declare_variable(surface_name, shape=(n, nx, ny, 3))
+        # 1.1.2 from the declared surface mesh, compute 6 preprocessing outputs
+        # surface_bd_vtx_coords,coll_pts,l_span,l_chord,s_panel,bd_vec_all
+        self.add(MeshPreprocessingComp(surface_names=surface_names,
+                                       surface_shapes=ode_surface_shapes),
+                 name='MeshPreprocessing_comp')
+        # 1.2.1 declare the ode parameter AcStates for the current time step
+        u = self.declare_variable('u',  shape=(n,1))
+        v = self.declare_variable('v',  shape=(n,1))
+        w = self.declare_variable('w',  shape=(n,1))
+        p = self.declare_variable('p',  shape=(n,1))
+        q = self.declare_variable('q',  shape=(n,1))
+        r = self.declare_variable('r',  shape=(n,1))
+        theta = self.declare_variable('theta',  shape=(n,1))
+        psi = self.declare_variable('psi',  shape=(n,1))
+        x = self.declare_variable('x',  shape=(n,1))
+        y = self.declare_variable('y',  shape=(n,1))
+        z = self.declare_variable('z',  shape=(n,1))
+        phiw = self.declare_variable('phiw',  shape=(n,1))
+        gamma = self.declare_variable('gamma',  shape=(n,1))
+        psiw = self.declare_variable('psiw',  shape=(n,1))
+
+
+        #  1.2.2 from the AcStates, compute 5 preprocessing outputs
+        # frame_vel, alpha, v_inf_sq, beta, rho
+        m = AdapterComp(
+            surface_names=surface_names,
+            surface_shapes=ode_surface_shapes
+        )
+        self.add(m, name='adapter_comp')
+
+
+
+        frame_vel = self.declare_variable('frame_vel', shape=(num_nodes, 3))
+
 
         cl_span_names = [x + '_cl_span' for x in surface_names]
 
@@ -57,11 +118,11 @@ class LiftDrag(Model):
             ny = surface_shapes[i][2]
             system_size += (nx - 1) * (ny - 1)
 
-        rho = self.declare_variable(name + 'rho', shape=(num_nodes, 1))
+        rho = self.declare_variable('rho', shape=(num_nodes, 1))
         rho_expand = csdl.expand(csdl.reshape(rho, (num_nodes, )),
                                  (num_nodes, system_size, 3), 'k->kij')
-        alpha = self.declare_variable(name + 'alpha', shape=(num_nodes, 1))
-        beta = self.declare_variable(name + 'beta', shape=(num_nodes, 1))
+        alpha = self.declare_variable('alpha', shape=(num_nodes, 1))
+        beta = self.declare_variable('beta', shape=(num_nodes, 1))
 
         sprs = self.parameters['sprs']
         eval_pts_option = self.parameters['eval_pts_option']
@@ -72,10 +133,10 @@ class LiftDrag(Model):
 
         v_total_wake_names = [x + '_eval_total_vel' for x in surface_names]
 
-        bd_vec = self.declare_variable(name + 'bd_vec',
+        bd_vec = self.declare_variable('bd_vec',
                                        shape=((num_nodes, system_size, 3)))
 
-        circulations = self.declare_variable(name + 'horseshoe_circulation',
+        circulations = self.declare_variable('horseshoe_circulation',
                                              shape=(num_nodes, system_size))
         circulation_repeat = csdl.expand(circulations,
                                          (num_nodes, system_size, 3),

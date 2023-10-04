@@ -9,7 +9,7 @@ from scipy.sparse import csc_matrix
 
 from lsdo_uvlm.uvlm_outputs.compute_force.horseshoe_circulations import HorseshoeCirculations
 from lsdo_uvlm.uvlm_outputs.compute_force.eval_pts_velocities_mls import EvalPtsVel
-# from lsdo_uvlm.uvlm_outputs.compute_force.compute_lift_drag import LiftDrag
+from lsdo_uvlm.uvlm_outputs.compute_force.compute_lift_drag import LiftDrag
 from lsdo_uvlm.uvlm_outputs.compute_force.compute_net_thrust import ThrustDrag
 
 
@@ -54,6 +54,8 @@ class Outputs(Model):
         self.parameters.declare('coeffs_aoa', default=None)
         self.parameters.declare('coeffs_cd', default=None)
 
+        self.parameters.declare('name', types=str, default='')
+
     def define(self):
         n_wake_pts_chord = self.parameters['n_wake_pts_chord']
         surface_names = self.parameters['surface_names']
@@ -69,9 +71,12 @@ class Outputs(Model):
         coeffs_aoa = self.parameters['coeffs_aoa']
         coeffs_cd = self.parameters['coeffs_cd']
 
+        name = self.parameters['name']
+
         submodel = HorseshoeCirculations(
             surface_names=surface_names,
             surface_shapes=surface_shapes,
+            name=name
         )
         self.add(submodel, name='compute_horseshoe_circulation')
 
@@ -87,17 +92,18 @@ class Outputs(Model):
         )
         self.add(submodel, name='EvalPtsVel')
 
-        # submodel = LiftDrag(
-        #     surface_names=surface_names,
-        #     surface_shapes=surface_shapes,
-        #     eval_pts_option=eval_pts_option,
-        #     eval_pts_shapes=eval_pts_shapes,
-        #     eval_pts_names=eval_pts_names,
-        #     sprs=sprs,
-        #     coeffs_aoa=coeffs_aoa,
-        #     coeffs_cd=coeffs_cd,
-        # )
-        # self.add(submodel, name='LiftDrag')
+        submodel = LiftDrag(
+            surface_names=surface_names,
+            surface_shapes=surface_shapes,
+            eval_pts_option=eval_pts_option,
+            eval_pts_shapes=eval_pts_shapes,
+            eval_pts_names=eval_pts_names,
+            sprs=sprs,
+            coeffs_aoa=coeffs_aoa,
+            coeffs_cd=coeffs_cd,
+            name=name
+        )
+        self.add(submodel, name='LiftDrag')
 
         # submodel = ThrustDrag(
         #     surface_names=surface_names,

@@ -110,21 +110,21 @@ class AdapterComp(Model):
         # compute the output: 3. alpha (num_nodes,1)
         ################################################################################
         alpha = theta - gamma
-        self.register_output('alpha', alpha)
+        self.register_output(name + 'alpha', alpha)
 
         ################################################################################
         # compute the output: 4. beta (num_nodes,1)
         ################################################################################
         beta = psi + psiw
         # we always assume v_inf > 0 here
-        self.register_output('beta', beta)
+        self.register_output(name + 'beta', beta)
 
         ################################################################################
         # create the output: 1. frame_vel (num_nodes,3)
         # TODO:fix this
         ################################################################################
 
-        frame_vel = self.create_output('frame_vel', shape=(num_nodes, 3))
+        frame_vel = self.create_output(name + 'frame_vel', shape=(num_nodes, 3))
 
         frame_vel[:, 0] = -v_inf * csdl.cos(beta) * csdl.cos(alpha)
         frame_vel[:, 1] = v_inf * csdl.sin(beta)
@@ -137,7 +137,7 @@ class AdapterComp(Model):
         # h = 1000
         # atmosisa = atmosphere.ATMOSPHERE_1976(Z=h)
         # rho_val = atmosisa.rho
-        self.create_input('rho', val=1.1 * np.ones((num_nodes, 1)))
+        self.create_input(name + 'rho', val=1.1 * np.ones((num_nodes, 1)))
         # self.create_input('rho', val=997 * np.ones((num_odes, 1)))
 
         # self.declare_variable('rho', shape=(num_nodes, 1))
