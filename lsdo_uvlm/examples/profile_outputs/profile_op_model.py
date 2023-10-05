@@ -32,7 +32,6 @@ class ProfileOpModel(csdl.Model):
         self.parameters.declare('surface_shapes', types=list)
         self.parameters.declare('delta_t')
         self.parameters.declare('nt')
-        self.parameters.declare('name', types=str, default='')
 
     def define(self):
         # rename parameters
@@ -41,16 +40,13 @@ class ProfileOpModel(csdl.Model):
         surface_shapes = self.parameters['surface_shapes']
         delta_t = self.parameters['delta_t']
         nt = self.parameters['nt']
-        name = self.parameters['name']
-        if not name == '':
-            name = name + '_'
 
-        # for i in range(len(surface_names)):
-        #     surface_names[i] = name + surface_names[i]
+        for i in range(len(surface_names)):
+            surface_names[i] = surface_names[i]
 
         # set conventional names
-        wake_coords_names = [name + x + '_wake_coords' for x in surface_names]
-        v_total_wake_names = [name + x + '_wake_total_vel' for x in surface_names]
+        wake_coords_names = [x + '_wake_coords' for x in surface_names]
+        v_total_wake_names = [x + '_wake_total_vel' for x in surface_names]
         # set shapes
         bd_vortex_shapes = surface_shapes
         gamma_b_shape = sum((i[0] - 1) * (i[1] - 1) for i in bd_vortex_shapes)
@@ -72,32 +68,30 @@ class ProfileOpModel(csdl.Model):
         # 1.1.2 from the declared surface mesh, compute 6 preprocessing outputs
         # surface_bd_vtx_coords,coll_pts,l_span,l_chord,s_panel,bd_vec_all
         self.add(MeshPreprocessingComp(surface_names=surface_names,
-                                       surface_shapes=ode_surface_shapes,
-                                       name = name),
+                                       surface_shapes=ode_surface_shapes),
                  name='MeshPreprocessing_comp')
         # 1.2.1 declare the ode parameter AcStates for the current time step
-        u = self.declare_variable(name + 'u',  shape=(n,1))
-        v = self.declare_variable(name + 'v',  shape=(n,1))
-        w = self.declare_variable(name + 'w',  shape=(n,1))
-        p = self.declare_variable(name + 'p',  shape=(n,1))
-        q = self.declare_variable(name + 'q',  shape=(n,1))
-        r = self.declare_variable(name + 'r',  shape=(n,1))
-        theta = self.declare_variable(name + 'theta',  shape=(n,1))
-        psi = self.declare_variable(name + 'psi',  shape=(n,1))
-        x = self.declare_variable(name + 'x',  shape=(n,1))
-        y = self.declare_variable(name + 'y',  shape=(n,1))
-        z = self.declare_variable(name + 'z',  shape=(n,1))
-        phiw = self.declare_variable(name + 'phiw',  shape=(n,1))
-        gamma = self.declare_variable(name + 'gamma',  shape=(n,1))
-        psiw = self.declare_variable(name + 'psiw',  shape=(n,1))
+        u = self.declare_variable('u',  shape=(n,1))
+        v = self.declare_variable('v',  shape=(n,1))
+        w = self.declare_variable('w',  shape=(n,1))
+        p = self.declare_variable('p',  shape=(n,1))
+        q = self.declare_variable('q',  shape=(n,1))
+        r = self.declare_variable('r',  shape=(n,1))
+        theta = self.declare_variable('theta',  shape=(n,1))
+        psi = self.declare_variable('psi',  shape=(n,1))
+        x = self.declare_variable('x',  shape=(n,1))
+        y = self.declare_variable('y',  shape=(n,1))
+        z = self.declare_variable('z',  shape=(n,1))
+        phiw = self.declare_variable('phiw',  shape=(n,1))
+        gamma = self.declare_variable('gamma',  shape=(n,1))
+        psiw = self.declare_variable('psiw',  shape=(n,1))
 
 
         #  1.2.2 from the AcStates, compute 5 preprocessing outputs
         # frame_vel, alpha, v_inf_sq, beta, rho
         m = AdapterComp(
             surface_names=surface_names,
-            surface_shapes=ode_surface_shapes,
-            name=name
+            surface_shapes=ode_surface_shapes
         )
         self.add(m, name='adapter_comp')
 
@@ -227,8 +221,7 @@ class ProfileOpModel(csdl.Model):
             sprs=None,
             coeffs_aoa=None,
             coeffs_cd=None,
-            n_wake_pts_chord=nt-1,
-            name=name
+            n_wake_pts_chord=nt-1
         )
         self.add(sub, name='VLM_outputs')
 
@@ -314,7 +307,7 @@ if __name__ == "__main__":
     wing = model_1.create_input(surface_names[1], wing_val_1)
     for data in AcStates_vlm:
         print('{:15} = {}'.format(data.name, data.value))
-        name = data.name
+        # name = data.name
         string_name = data.value
         variable = model_1.create_input(string_name,
                                         val=AcStates_val_dict[string_name])

@@ -32,13 +32,11 @@ class MeshPreprocessingComp(Model):
     def initialize(self):
         self.parameters.declare('surface_names', types=list)
         self.parameters.declare('surface_shapes', types=list)
-        self.parameters.declare('name', types=str, default='')
 
     def define(self):
         # load options
         surface_names = self.parameters['surface_names']
         surface_shapes = self.parameters['surface_shapes']
-        name = self.parameters['name']
         num_nodes = surface_shapes[0][0]
 
         system_size = sum((i[1] - 1) * (i[2] - 1) for i in surface_shapes)
@@ -150,7 +148,7 @@ class MeshPreprocessingComp(Model):
         ################################################################################
         # create the output: 6. bd_vec_all: bd_vec of all lifting surfaces
         ################################################################################
-        bd_vec_all = self.create_output(name + 'bd_vec',
+        bd_vec_all = self.create_output('bd_vec',
                                         shape=(num_nodes, system_size, 3))
         start = 0
         for i in range(len(surface_names)):

@@ -40,14 +40,11 @@ class LiftDrag(Model):
         self.parameters.declare('coeffs_aoa', default=None)
         self.parameters.declare('coeffs_cd', default=None)
 
-        self.parameters.declare('name', default='')
-
     def define(self):
         surface_names = self.parameters['surface_names']
         surface_shapes = self.parameters['surface_shapes']
-        name = self.parameters['name']
         num_nodes = surface_shapes[0][0]
-        frame_vel = self.declare_variable(name + 'frame_vel', shape=(num_nodes, 3))
+        frame_vel = self.declare_variable('frame_vel', shape=(num_nodes, 3))
 
         cl_span_names = [x + '_cl_span' for x in surface_names]
 
@@ -57,11 +54,11 @@ class LiftDrag(Model):
             ny = surface_shapes[i][2]
             system_size += (nx - 1) * (ny - 1)
 
-        rho = self.declare_variable(name + 'rho', shape=(num_nodes, 1))
+        rho = self.declare_variable('rho', shape=(num_nodes, 1))
         rho_expand = csdl.expand(csdl.reshape(rho, (num_nodes, )),
                                  (num_nodes, system_size, 3), 'k->kij')
-        alpha = self.declare_variable(name + 'alpha', shape=(num_nodes, 1))
-        beta = self.declare_variable(name + 'beta', shape=(num_nodes, 1))
+        alpha = self.declare_variable('alpha', shape=(num_nodes, 1))
+        beta = self.declare_variable('beta', shape=(num_nodes, 1))
 
         sprs = self.parameters['sprs']
         eval_pts_option = self.parameters['eval_pts_option']
@@ -72,10 +69,10 @@ class LiftDrag(Model):
 
         v_total_wake_names = [x + '_eval_total_vel' for x in surface_names]
 
-        bd_vec = self.declare_variable(name + 'bd_vec',
+        bd_vec = self.declare_variable('bd_vec',
                                        shape=((num_nodes, system_size, 3)))
 
-        circulations = self.declare_variable(name + 'horseshoe_circulation',
+        circulations = self.declare_variable('horseshoe_circulation',
                                              shape=(num_nodes, system_size))
         circulation_repeat = csdl.expand(circulations,
                                          (num_nodes, system_size, 3),
@@ -261,7 +258,7 @@ class LiftDrag(Model):
                     surface_names=surface_names,
                     surface_shapes=surface_shapes,
                     coeffs_aoa=coeffs_aoa,
-                    coeffs_cd=coeffs_cd,
+                    coeffs_cd=coeffs_cd
                 )
                 self.add(sub, name='AOA_CD')
 

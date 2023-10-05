@@ -51,15 +51,12 @@ class ComputeWakeKinematicVel(Model):
 
         self.parameters.declare('n_wake_pts_chord', default=2)
 
-        self.parameters.declare('name', default='')
-
 
 
     def define(self):
         n_wake_pts_chord = self.parameters['n_wake_pts_chord']
         surface_names = self.parameters['surface_names']
         surface_shapes = self.parameters['surface_shapes']
-        name = self.parameters['name']
 
         num_nodes = surface_shapes[0][0]
         
@@ -70,7 +67,7 @@ class ComputeWakeKinematicVel(Model):
         wake_kinematic_vel_names = [x + '_wake_kinematic_vel' for x in surface_names]
         # wake_kinematic_vel_names = [x + '_wake_total_vel' for x in surface_names]
 
-        frame_vel = self.declare_variable(name + 'frame_vel',shape=(num_nodes,3))
+        frame_vel = self.declare_variable('frame_vel',shape=(num_nodes,3))
 
         for i in range(len(surface_names)):
             surface_wake_kinematic_vel = csdl.expand(-frame_vel,(wake_kinematic_vel_shapes[i]),'il->ijkl')

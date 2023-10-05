@@ -25,12 +25,10 @@ class HorseshoeCirculations(Model):
     def initialize(self):
         self.parameters.declare('surface_names', types=list)
         self.parameters.declare('surface_shapes', types=list)
-        self.parameters.declare('name', types=str, default='')
 
     def define(self):
         surface_names = self.parameters['surface_names']
         surface_shapes = self.parameters['surface_shapes']
-        name = self.parameters['name']
         num_nodes = surface_shapes[0][0]
 
         system_size = 0
@@ -90,7 +88,7 @@ class HorseshoeCirculations(Model):
                                             op=EinsumIjKjKi(in_name_1='mtx',
                                                                 in_name_2='gamma_b',
                                                                 ijk=(system_size, system_size,num_nodes),
-                                                                out_name=name + 'horseshoe_circulation'))
+                                                                out_name='horseshoe_circulation'))
 
         
         
@@ -100,7 +98,7 @@ class HorseshoeCirculations(Model):
         # print('horseshoe_circulation horseshoe_circulation shape',
         #       horseshoe_circulation.shape)
 
-        self.register_output(name + 'horseshoe_circulation', horseshoe_circulation)
+        self.register_output('horseshoe_circulation', horseshoe_circulation)
 
 
 if __name__ == "__main__":

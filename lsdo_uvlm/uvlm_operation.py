@@ -10,33 +10,33 @@ from lsdo_uvlm.uvlm_system.solve_circulations.solve_group import SolveMatrix
 from lsdo_uvlm.uvlm_system.wake_rollup.seperate_gamma_b import SeperateGammab
 from lsdo_uvlm.uvlm_system.wake_rollup.compute_wake_total_vel import ComputeWakeTotalVel
 from lsdo_uvlm.uvlm_outputs.compute_force.compute_lift_drag import LiftDrag
+from lsdo_uvlm.uvlm_outputs.compute_force.compute_net_thrust import ThrustDrag
 from lsdo_uvlm.examples.profile_outputs.profile_op_model import ProfileOpModel
 
 
 class UVLMCore(m3l.ImplicitOperation):
     def initialize(self, kwargs):
-        self.parameters.declare('name', types=str, default='uvlm')
         self.parameters.declare('surface_names', types=list)
         self.parameters.declare('surface_shapes', types=list)
         self.parameters.declare('delta_t')
         self.parameters.declare('nt')
+        self.parameters.declare('name', default='uvlm')
     def assign_atributes(self):
-        self.name = self.parameters['name']
         self.surface_names = self.parameters['surface_names']
         self.surface_shapes = self.parameters['surface_shapes']
         self.delta_t = self.parameters['delta_t']
         self.nt = self.parameters['nt']
+        self.name = self.parameters['name']
     def evaluate(self):
         self.assign_atributes()
         num_nodes = self.nt - 1
         self.residual_names = []
-        name = self.name + '_'
         self.ode_parameters = ['u',
                                'v',
                                'w',
-                            #    'p',   # these are declared but not used
-                            #    'q',
-                            #    'r',
+                               'p',   # these are declared but not used
+                               'q',
+                               'r',
                                'theta',
                                'psi',
                             #    'x',
@@ -58,7 +58,7 @@ class UVLMCore(m3l.ImplicitOperation):
             nx = surface_shape[0]
             ny = surface_shape[1]
             self.ode_parameters.append(surface_name)
-            surface_name = name + surface_name
+            surface_name = surface_name
             ####################################
             # ode states names
             ####################################
@@ -85,9 +85,6 @@ class UVLMCore(m3l.ImplicitOperation):
             self.residual_names.append((gamma_w_name,dgammaw_dt_name,(num_nodes, ny-1)))
             self.residual_names.append((wing_wake_coords_name,dwake_coords_dt_name,(num_nodes,ny,3)))
 
-
-        for i in range(len(self.ode_parameters)):
-            self.ode_parameters[i] = name + self.ode_parameters[i]
         self.inputs = {}
         self.arguments = {}
         
@@ -98,8 +95,7 @@ class UVLMCore(m3l.ImplicitOperation):
                                surface_names=self.surface_names,
                                surface_shapes=self.surface_shapes,
                                delta_t=self.delta_t,
-                               nt=self.nt,
-                               name=self.name)
+                               nt=self.nt)
         return model
 
 
@@ -127,7 +123,6 @@ class ODESystemModel(csdl.Model):
         self.parameters.declare('surface_shapes', types=list)
         self.parameters.declare('delta_t')
         self.parameters.declare('nt')
-        self.parameters.declare('name')
 
     def define(self):
         # rename parameters
@@ -136,11 +131,6 @@ class ODESystemModel(csdl.Model):
         surface_shapes = self.parameters['surface_shapes']
         delta_t = self.parameters['delta_t']
         nt = self.parameters['nt']
-        name = self.parameters['name'] + '_'
-
-        # fix surface names
-        for i in range(len(surface_names)):
-            surface_names[i] = name + surface_names[i]
 
         # set conventional names
         wake_coords_names = [x + '_wake_coords' for x in surface_names]
@@ -169,28 +159,27 @@ class ODESystemModel(csdl.Model):
                                        surface_shapes=ode_surface_shapes),
                  name='MeshPreprocessing_comp')
         # 1.2.1 declare the ode parameter AcStates for the current time step
-        u = self.declare_variable(name+'u',  shape=(n,1))
-        v = self.declare_variable(name+'v',  shape=(n,1))
-        w = self.declare_variable(name+'w',  shape=(n,1))
-        p = self.declare_variable(name+'p',  shape=(n,1))
-        q = self.declare_variable(name+'q',  shape=(n,1))
-        r = self.declare_variable(name+'r',  shape=(n,1))
-        theta = self.declare_variable(name+'theta',  shape=(n,1))
-        psi = self.declare_variable(name+'psi',  shape=(n,1))
-        x = self.declare_variable(name+'x',  shape=(n,1))
-        y = self.declare_variable(name+'y',  shape=(n,1))
-        z = self.declare_variable(name+'z',  shape=(n,1))
-        phiw = self.declare_variable(name+'phiw',  shape=(n,1))
-        gamma = self.declare_variable(name+'gamma',  shape=(n,1))
-        psiw = self.declare_variable(name+'psiw',  shape=(n,1))
+        u = self.declare_variable('u',  shape=(n,1))
+        v = self.declare_variable('v',  shape=(n,1))
+        w = self.declare_variable('w',  shape=(n,1))
+        p = self.declare_variable('p',  shape=(n,1))
+        q = self.declare_variable('q',  shape=(n,1))
+        r = self.declare_variable('r',  shape=(n,1))
+        theta = self.declare_variable('theta',  shape=(n,1))
+        psi = self.declare_variable('psi',  shape=(n,1))
+        x = self.declare_variable('x',  shape=(n,1))
+        y = self.declare_variable('y',  shape=(n,1))
+        z = self.declare_variable('z',  shape=(n,1))
+        phiw = self.declare_variable('phiw',  shape=(n,1))
+        gamma = self.declare_variable('gamma',  shape=(n,1))
+        psiw = self.declare_variable('psiw',  shape=(n,1))
 
 
         #  1.2.2 from the AcStates, compute 5 preprocessing outputs
         # frame_vel, alpha, v_inf_sq, beta, rho
         m = AdapterComp(
             surface_names=surface_names,
-            surface_shapes=ode_surface_shapes,
-            name=name
+            surface_shapes=ode_surface_shapes
         )
         self.add(m, name='adapter_comp')
 
@@ -273,8 +262,7 @@ class ODESystemModel(csdl.Model):
 
         self.add(ComputeWakeTotalVel(surface_names=surface_names,
                                 surface_shapes=ode_surface_shapes,
-                                n_wake_pts_chord=nt-1,
-                                name = name),
+                                n_wake_pts_chord=nt-1),
                  name='ComputeWakeTotalVel')            
         for i in range(len(surface_names)):
             nx = bd_vortex_shapes[i][0]
@@ -407,11 +395,12 @@ if __name__ == '__main__':
     pass
     import python_csdl_backend
     from VLM_package.examples.run_vlm.utils.generate_mesh import generate_mesh
+    from lsdo_uvlm.uvlm_outputs.compute_force.compute_lift_drag import LiftDrag
 
     ########################################
     # define mesh here
     ########################################
-    nx = 29
+    nx = 19
     ny = 5 # actually 14 in the book
 
 
@@ -419,7 +408,7 @@ if __name__ == '__main__':
     span = 12
     # num_nodes = 9*16
     # num_nodes = 16 *2
-    num_nodes = 20
+    num_nodes = 30
     # num_nodes = 3
     nt = num_nodes+1
 
@@ -429,25 +418,28 @@ if __name__ == '__main__':
 
     # u_val = np.concatenate((np.array([0.01, 0.5,1.]),np.ones(num_nodes-3))).reshape(num_nodes,1)
     # u_val = np.ones(num_nodes).reshape(num_nodes,1)
-    u_val = np.concatenate((np.array([0.001]), np.ones(num_nodes-1))).reshape(num_nodes,1)*10
+    u_val = np.ones(num_nodes).reshape(num_nodes,1)*10
     # theta_val = np.linspace(0,alpha,num=num_nodes)
     theta_val = np.ones((num_nodes, 1))*alpha
 
-    name = 'uvlm_'
-    uvlm_parameters = [(name+'u',True,u_val),
-                       (name+'v',True,np.zeros((num_nodes, 1))),
-                       (name+'w',True,np.ones((num_nodes, 1))),
-                    #    (name+'p',True,np.zeros((num_nodes, 1))),
-                    #    (name+'q',True,np.zeros((num_nodes, 1))),
-                    #    (name+'r',True,np.zeros((num_nodes, 1))),
-                       (name+'theta',True,theta_val),
-                       (name+'psi',True,np.zeros((num_nodes, 1))),
-                    #    (name+'x',True,np.zeros((num_nodes, 1))),
-                    #    (name+'y',True,np.zeros((num_nodes, 1))),
-                    #    (name+'z',True,np.zeros((num_nodes, 1))),
-                    #    (name+'phiw',True,np.zeros((num_nodes, 1))),
-                       (name+'gamma',True,np.zeros((num_nodes, 1))),
-                       (name+'psiw',True,np.zeros((num_nodes, 1)))]
+    # name0 = 'wang'
+    # name = name0 + '_'
+    # name0 = ''
+    # name = name0
+    uvlm_parameters = [('u',True,u_val),
+                       ('v',True,np.zeros((num_nodes, 1))),
+                       ('w',True,np.ones((num_nodes, 1))),
+                       ('p',True,np.zeros((num_nodes, 1))),
+                       ('q',True,np.zeros((num_nodes, 1))),
+                       ('r',True,np.zeros((num_nodes, 1))),
+                       ('theta',True,theta_val),
+                       ('psi',True,np.zeros((num_nodes, 1))),
+                    #    ('x',True,np.zeros((num_nodes, 1))),
+                    #    ('y',True,np.zeros((num_nodes, 1))),
+                    #    ('z',True,np.zeros((num_nodes, 1))),
+                    #    ('phiw',True,np.zeros((num_nodes, 1))),
+                       ('gamma',True,np.zeros((num_nodes, 1))),
+                       ('psiw',True,np.zeros((num_nodes, 1)))]
     
     mesh_dict = {
         "num_y": ny,
@@ -479,7 +471,7 @@ if __name__ == '__main__':
         mesh_val_2[i, :, :, 0] = mesh2.copy()[:, :, 0] + 5
         mesh_val_2[i, :, :, 1] = mesh2.copy()[:, :, 1]
 
-    uvlm_parameters.append(('uvlm_wing',True,mesh_val))
+    uvlm_parameters.append(('wing', True, mesh_val))
     # uvlm_parameters.append(('uvlm_wing2',True,mesh_val_2))
 
 
@@ -493,8 +485,8 @@ if __name__ == '__main__':
     initial_conditions = []
     for i in range(len(surface_names)):
         surface_name = surface_names[i]
-        gamma_w_0_name = 'uvlm_' + surface_name + '_gamma_w_0'
-        wake_coords_0_name = 'uvlm_' + surface_name + '_wake_coords_0'
+        gamma_w_0_name = surface_name + '_gamma_w_0'
+        wake_coords_0_name = surface_name + '_wake_coords_0'
         surface_shape = surface_shapes[i]
         nx = surface_shape[0]
         ny = surface_shape[1]
@@ -505,32 +497,32 @@ if __name__ == '__main__':
     profile_outputs = []
     # profile outputs are outputs from the ode integrator that are not states. 
     # instead they are outputs of a function of the solved states and parameters
-    profile_outputs.append((name + 'wing_gamma_b', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
-    profile_outputs.append((name + 'wing_eval_pts_coords', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1),3)))
-    profile_outputs.append((name + 'wing_s_panel', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1))))
-    profile_outputs.append((name + 'wing_eval_total_vel', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
-    profile_outputs.append((name + 'rho',(1,)))
-    profile_outputs.append((name + 'alpha',(1,)))
-    profile_outputs.append((name + 'beta',(1,)))
-    profile_outputs.append((name + 'frame_vel',(3,)))
-    # profile_outputs.append((name + 'evaluation_pt'))
-    profile_outputs.append((name + 'bd_vec', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
+    profile_outputs.append(('wing_gamma_b', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
+    profile_outputs.append(('wing_gamma_w', (num_nodes,4)))
+    profile_outputs.append(('wing_eval_pts_coords', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1),3)))
+    profile_outputs.append(('wing_s_panel', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1))))
+    profile_outputs.append(('wing_eval_total_vel', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
+    profile_outputs.append(('rho',(1,)))
+    profile_outputs.append(('alpha',(1,)))
+    profile_outputs.append(('beta',(1,)))
+    profile_outputs.append(('frame_vel',(3,)))
+    # profile_outputs.append(('evaluation_pt'))
+    profile_outputs.append(('bd_vec', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
 
-    profile_outputs.append((name + 'horseshoe_circulation', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
-    profile_outputs.append(('F', (num_nodes, 3)) )
-    profile_outputs.append(('uvlm_wing_L', (num_nodes,1)))
-    # profile_outputs.append(('uvlm_wing2_C_L', (num_nodes,1)))
-    profile_outputs.append(('uvlm_wing_D', (num_nodes,1)))
+    profile_outputs.append(('horseshoe_circulation', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
+    # profile_outputs.append(('F', (num_nodes, 3)) )
+    # profile_outputs.append(('uvlm_wing_L', (num_nodes,1)))
+    # # profile_outputs.append(('uvlm_wing2_C_L', (num_nodes,1)))
+    # profile_outputs.append(('uvlm_wing_D', (num_nodes,1)))
     # profile_outputs.append(('uvlm_wing2_C_D_i', (num_nodes,1)))
 
     profile_system = ProfileOpModel
     profile_params_dict = {
             # 'num_nodes': nt-1,
-            'surface_names': surface_names,
+            'surface_names': ['wing'],
             'surface_shapes': surface_shapes,
             'delta_t': delta_t,
-            'nt': nt,
-            'name': 'uvlm'
+            'nt': nt
         }
 
     model = m3l.DynamicModel()
@@ -546,6 +538,40 @@ if __name__ == '__main__':
                               profile_system=profile_system,
                               profile_parameters=profile_params_dict)
     model_csdl = model.assemble()
+
+    surface_names = ['wing']
+    eval_pts_names = [x + '_eval_pts_coords' for x in surface_names]
+    ode_surface_shapes = [(num_nodes, ) + item for item in surface_shapes]
+    eval_pts_shapes =        [
+        tuple(map(lambda i, j: i - j, item, (0, 1, 1, 0)))
+        for item in ode_surface_shapes
+    ]
+    
+    # submodel = LiftDrag(
+    #         surface_names=surface_names,
+    #         surface_shapes=ode_surface_shapes,
+    #         eval_pts_option='auto',
+    #         eval_pts_shapes=eval_pts_shapes,
+    #         eval_pts_names=eval_pts_names,
+    #         sprs=None,
+    #         coeffs_aoa=None,
+    #         coeffs_cd=None
+    #     )
+    submodel = ThrustDrag(
+            surface_names=surface_names,
+            surface_shapes=ode_surface_shapes,
+            eval_pts_option='auto',
+            eval_pts_shapes=eval_pts_shapes,
+            eval_pts_names=eval_pts_names,
+            sprs=None,
+            coeffs_aoa=None,
+            coeffs_cd=None,
+        )
+    
+    model_csdl.add(submodel, name='LiftDrag')
+
+
+
     sim = python_csdl_backend.Simulator(model_csdl, analytics=True)
     # Before code
     import cProfile
@@ -556,8 +582,15 @@ if __name__ == '__main__':
     profiler.disable()
     profiler.dump_stats('output')
 
-    print('Lift 1: ' + str(sim['prob.uvlm_wing_L']))
-    print('Drag 1: ' + str(sim['prob.uvlm_wing_D']))
+    print(sim['LiftDrag.wing_D'])
+    print(sim['LiftDrag.wing_L'])
+
+
+    # print(sim['prob.' + name + 'horseshoe_circulation'])
+    exit()
+
+    # print('Lift 1: ' + str(sim['LiftDrag.' + name + 'wing_L']))
+    # print('Drag 1: ' + str(sim['LiftDrag.' + name + 'wing_D']))
 
 
     if True:

@@ -141,14 +141,10 @@ class SolveMatrix(Model):
 
         solve = self.create_implicit_operation(model)
         solve.declare_state('gamma_b', residual='y')
-        # solve.nonlinear_solver = NonlinearBlockGS(
-        #     maxiter=50,
-        #     iprint=True,
-        # )
         solve.nonlinear_solver = NewtonSolver(
             solve_subsystems=False,
             maxiter=5,
-            iprint=False,
+            iprint=True,
         )
         solve.linear_solver = ScipyKrylov()
 

@@ -62,14 +62,11 @@ class ComputeWakeTotalVel(Model):
         # self.parameters.declare('coeffs_aoa', default=None)
         # self.parameters.declare('coeffs_cd', default=None)
 
-        self.parameters.declare('name', default='')
-
     def define(self):
         n_wake_pts_chord = self.parameters['n_wake_pts_chord']
         surface_names = self.parameters['surface_names']
         surface_shapes = self.parameters['surface_shapes']
         n_wake_pts_chord = self.parameters['n_wake_pts_chord']
-        name = self.parameters['name']
 
         # eval_pts_names = self.parameters['eval_pts_names']
         # eval_pts_shapes = self.parameters['eval_pts_shapes']
@@ -84,8 +81,7 @@ class ComputeWakeTotalVel(Model):
         submodel = ComputeWakeKinematicVel(
             surface_names=surface_names,
             surface_shapes=surface_shapes,
-            n_wake_pts_chord=n_wake_pts_chord,
-            name = name
+            n_wake_pts_chord=n_wake_pts_chord
         )
         self.add(submodel, name='ComputeWakeKinematicVel')
 

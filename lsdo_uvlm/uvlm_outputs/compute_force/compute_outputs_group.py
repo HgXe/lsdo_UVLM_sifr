@@ -54,8 +54,6 @@ class Outputs(Model):
         self.parameters.declare('coeffs_aoa', default=None)
         self.parameters.declare('coeffs_cd', default=None)
 
-        self.parameters.declare('name', types=str, default='')
-
     def define(self):
         n_wake_pts_chord = self.parameters['n_wake_pts_chord']
         surface_names = self.parameters['surface_names']
@@ -71,12 +69,9 @@ class Outputs(Model):
         coeffs_aoa = self.parameters['coeffs_aoa']
         coeffs_cd = self.parameters['coeffs_cd']
 
-        name = self.parameters['name']
-
         submodel = HorseshoeCirculations(
             surface_names=surface_names,
-            surface_shapes=surface_shapes,
-            name=name
+            surface_shapes=surface_shapes
         )
         self.add(submodel, name='compute_horseshoe_circulation')
 
@@ -92,18 +87,18 @@ class Outputs(Model):
         )
         self.add(submodel, name='EvalPtsVel')
 
-        submodel = LiftDrag(
-            surface_names=surface_names,
-            surface_shapes=surface_shapes,
-            eval_pts_option=eval_pts_option,
-            eval_pts_shapes=eval_pts_shapes,
-            eval_pts_names=eval_pts_names,
-            sprs=sprs,
-            coeffs_aoa=coeffs_aoa,
-            coeffs_cd=coeffs_cd,
-            name=name
-        )
-        self.add(submodel, name='LiftDrag')
+        # submodel = LiftDrag(
+        #     surface_names=surface_names,
+        #     surface_shapes=surface_shapes,
+        #     eval_pts_option=eval_pts_option,
+        #     eval_pts_shapes=eval_pts_shapes,
+        #     eval_pts_names=eval_pts_names,
+        #     sprs=sprs,
+        #     coeffs_aoa=coeffs_aoa,
+        #     coeffs_cd=coeffs_cd,
+        #     name=name
+        # )
+        # self.add(submodel, name='LiftDrag')
 
         # submodel = ThrustDrag(
         #     surface_names=surface_names,
