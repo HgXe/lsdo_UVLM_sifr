@@ -87,11 +87,11 @@ class UVLMCore(m3l.ImplicitOperation):
 
         self.inputs = {}
         self.arguments = {}
-        
+
         residual = m3l.Variable(self.residual_names[0][1], shape=(), operation=self)
         return residual #, frame_vel, bd_vec, horseshoe_circulation
     def compute_residual(self, num_nodes):
-        model = ODESystemModel(num_nodes=num_nodes, 
+        model = ODESystemModel(num_nodes=num_nodes,
                                surface_names=self.surface_names,
                                surface_shapes=self.surface_shapes,
                                delta_t=self.delta_t,
@@ -150,7 +150,7 @@ class ODESystemModel(csdl.Model):
             nx = bd_vortex_shapes[i][0]
             ny = bd_vortex_shapes[i][1]
             surface_name = surface_names[i]
-            
+
 
             surface = self.declare_variable(surface_name, shape=(n, nx, ny, 3))
         # 1.1.2 from the declared surface mesh, compute 6 preprocessing outputs
@@ -263,7 +263,7 @@ class ODESystemModel(csdl.Model):
         self.add(ComputeWakeTotalVel(surface_names=surface_names,
                                 surface_shapes=ode_surface_shapes,
                                 n_wake_pts_chord=nt-1),
-                 name='ComputeWakeTotalVel')            
+                 name='ComputeWakeTotalVel')
         for i in range(len(surface_names)):
             nx = bd_vortex_shapes[i][0]
             ny = bd_vortex_shapes[i][1]
@@ -336,7 +336,7 @@ class LiftDragM3L(csdl.Model):
             nx = bd_vortex_shapes[i][0]
             ny = bd_vortex_shapes[i][1]
             surface_name = surface_names[i]
-            
+
 
             surface = self.declare_variable(surface_name, shape=(n, nx, ny, 3))
         # 1.1.2 from the declared surface mesh, compute 6 preprocessing outputs
@@ -368,7 +368,7 @@ class LiftDragM3L(csdl.Model):
             surface_shapes=ode_surface_shapes
         )
         self.add(m, name='adapter_comp')
-        
+
         eval_pts_names = [x + '_eval_pts_coords' for x in surface_names]
         ode_surface_shapes = [(n, ) + item for item in surface_shapes]
         eval_pts_shapes =        [
@@ -400,7 +400,7 @@ if __name__ == '__main__':
     ########################################
     # define mesh here
     ########################################
-    nx = 19
+    nx = 29
     ny = 5 # actually 14 in the book
 
 
@@ -408,7 +408,7 @@ if __name__ == '__main__':
     span = 12
     # num_nodes = 9*16
     # num_nodes = 16 *2
-    num_nodes = 30
+    num_nodes = 20
     # num_nodes = 3
     nt = num_nodes+1
 
@@ -440,7 +440,7 @@ if __name__ == '__main__':
                     #    ('phiw',True,np.zeros((num_nodes, 1))),
                        ('gamma',True,np.zeros((num_nodes, 1))),
                        ('psiw',True,np.zeros((num_nodes, 1)))]
-    
+
     mesh_dict = {
         "num_y": ny,
         "num_x": nx,
@@ -495,10 +495,10 @@ if __name__ == '__main__':
         initial_conditions.append((wake_coords_0_name, np.zeros((num_nodes, ny, 3))))
 
     profile_outputs = []
-    # profile outputs are outputs from the ode integrator that are not states. 
+    # profile outputs are outputs from the ode integrator that are not states.
     # instead they are outputs of a function of the solved states and parameters
     profile_outputs.append(('wing_gamma_b', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),)))
-    profile_outputs.append(('wing_gamma_w', (num_nodes,4)))
+    # profile_outputs.append(('wing_gamma_w', (num_nodes,4)))
     profile_outputs.append(('wing_eval_pts_coords', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1),3)))
     profile_outputs.append(('wing_s_panel', ((surface_shapes[0][0]-1),(surface_shapes[0][1]-1))))
     profile_outputs.append(('wing_eval_total_vel', ((surface_shapes[0][0]-1)*(surface_shapes[0][1]-1),3)))
@@ -546,7 +546,7 @@ if __name__ == '__main__':
         tuple(map(lambda i, j: i - j, item, (0, 1, 1, 0)))
         for item in ode_surface_shapes
     ]
-    
+
     # submodel = LiftDrag(
     #         surface_names=surface_names,
     #         surface_shapes=ode_surface_shapes,
@@ -567,7 +567,7 @@ if __name__ == '__main__':
             coeffs_aoa=None,
             coeffs_cd=None,
         )
-    
+
     model_csdl.add(submodel, name='LiftDrag')
 
 
@@ -582,8 +582,8 @@ if __name__ == '__main__':
     profiler.disable()
     profiler.dump_stats('output')
 
-    print(sim['LiftDrag.wing_D'])
-    print(sim['LiftDrag.wing_L'])
+    # print(sim['LiftDrag.wing_D'])
+    # print(sim['LiftDrag.wing_L'])
 
 
     # print(sim['prob.' + name + 'horseshoe_circulation'])
